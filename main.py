@@ -1,62 +1,41 @@
 import os
+import subprocess
 from flask import Flask, request, send_file
 from flask_cors import CORS
-from elevenlabs.client import ElevenLabs
-from openai import OpenAI
-from dotenv import load_dotenv
 from uuid import uuid4
 
-load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL")
-)
-
 @app.route("/ask-hal", methods=["POST"])
 def ask_hal():
-    # Save uploaded audio file
     audio_file = request.files["audio"]
-    input_path = f"/tmp/{uuid4()}.webm"
+    input_id = str(uuid4())
+    input_path = f"/tmp/{input_id}.webm"
+    wav_path = f"/tmp/{input_id}.wav"
+    txt_path = f"/tmp/{input_id}.txt"
+
+    # Save the uploaded audio
     audio_file.save(input_path)
 
-    # TEMPORARY: Hardcoded input to skip transcription
-    text = "Hello, HAL. Can you hear me?"
-    print("Transcribed (mock):", text)
+    # Convert .webm to .wav
+    subprocess.run([
+        "ffmpeg", "-i", input_path,
+        "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+        wav_path
+    ], check=True)
 
+    # Transcribe with Whisper.cpp
+    subprocess.run([
+        "./build/bin/whisper", "-m", "models/ggml-base.bin",
+        "-f", wav_path, "-otxt", "-of", f"/tmp/{input_id}"
+    ], check=True)
 
-    # Generate response using OpenAI
-    chat = client.chat.completions.create(
-        model="meta-llama/llama-3-8b-instruct",
-        messages=[{
-            "role": "system",
-            "content": "You are HAL 9000. Be calm, polite, eerie, confident."
-        }, {
-            "role": "user",
-            "content": text
-        }]
-    )
-    hal_reply = chat.choices[0].message.content
-    print("HAL says:", hal_reply)
+    # Read transcript
+    with open(txt_path, "r") as f:
+        text = f.read().strip()
 
-    # Convert reply to audio using ElevenLabs
-    voice = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
-    out_path = f"/tmp/{uuid4()}.mp3"
+    print("Transcribed:", text)
 
-    audio = voice.text_to_speech.convert(
-        voice_id=os.getenv("ELEVEN_VOICE_ID"),
-        model_id="eleven_multilingual_v2",
-        optimize_streaming_latency=4,
-        input=hal_reply
-    )
-
-    with open(out_path, "wb") as f:
-        for chunk in audio:
-            f.write(chunk)
-
-    return send_file(out_path, mimetype="audio/mpeg")
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    # For now, just return the transcript text
+    return text
