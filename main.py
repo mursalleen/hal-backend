@@ -1,57 +1,63 @@
+import os
 from flask import Flask, request, send_file
 from flask_cors import CORS
-import os
-import tempfile
+from elevenlabs.client import ElevenLabs
 from openai import OpenAI
-from elevenlabs import generate, save
 from dotenv import load_dotenv
+from uuid import uuid4
 
 load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-openai.base_url = os.getenv("OPENAI_BASE_URL")
-ELKEY = os.getenv("ELEVEN_API_KEY")
-VOICE = os.getenv("ELEVEN_VOICE_ID")
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL")
+)
 
 @app.route("/ask-hal", methods=["POST"])
 def ask_hal():
-    print("🔴 Received request at /ask-hal")
-
-    if "audio" not in request.files:
-        return "No audio file found", 400
-
+    # Save uploaded audio file
     audio_file = request.files["audio"]
-    temp_path = tempfile.mktemp(suffix=".wav")
-    audio_file.save(temp_path)
+    input_path = f"/tmp/{uuid4()}.webm"
+    audio_file.save(input_path)
 
-    transcript = openai.audio.transcriptions.create(
+    # Transcribe using OpenAI
+    transcript = client.audio.transcriptions.create(
         model="whisper-1",
-        file=open(temp_path, "rb")
-    ).text
+        file=open(input_path, "rb")
+    )
+    text = transcript.text
+    print("Transcribed:", text)
 
-    print("User said:", transcript)
-
-    response = openai.chat.completions.create(
+    # Generate response using OpenAI
+    chat = client.chat.completions.create(
         model="meta-llama/llama-3-8b-instruct",
-        messages=[
-            {"role": "system", "content": "You are HAL 9000. Respond briefly, calmly, and critically."},
-            {"role": "user", "content": transcript}
-        ]
-    ).choices[0].message.content
+        messages=[{
+            "role": "system",
+            "content": "You are HAL 9000. Be calm, polite, eerie, confident."
+        }, {
+            "role": "user",
+            "content": text
+        }]
+    )
+    hal_reply = chat.choices[0].message.content
+    print("HAL says:", hal_reply)
 
-    print("HAL:", response)
+    # Convert reply to audio using ElevenLabs
+    voice = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
+    out_path = f"/tmp/{uuid4()}.mp3"
 
-    audio = generate(
-        text=response,
-        voice=VOICE,
-        model="eleven_monolingual_v1",
-        api_key=ELKEY
+    audio = voice.text_to_speech.convert(
+        voice_id=os.getenv("ELEVEN_VOICE_ID"),
+        model_id="eleven_multilingual_v2",
+        optimize_streaming_latency=4,
+        input=hal_reply
     )
 
-    out_path = tempfile.mktemp(suffix=".mp3")
-    save(audio, out_path)
+    with open(out_path, "wb") as f:
+        for chunk in audio:
+            f.write(chunk)
 
     return send_file(out_path, mimetype="audio/mpeg")
 
