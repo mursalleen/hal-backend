@@ -22,13 +22,10 @@ def ask_hal():
     input_path = f"/tmp/{uuid4()}.webm"
     audio_file.save(input_path)
 
-    # Transcribe using OpenAI
-    transcript = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=open(input_path, "rb")
-    )
-    text = transcript.text
-    print("Transcribed:", text)
+    # TEMPORARY: Hardcoded input to skip transcription
+    text = "Hello, HAL. Can you hear me?"
+    print("Transcribed (mock):", text)
+
 
     # Generate response using OpenAI
     chat = client.chat.completions.create(
