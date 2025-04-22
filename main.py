@@ -1,61 +1,59 @@
-import os
-import tempfile
 from flask import Flask, request, send_file
 from flask_cors import CORS
-import soundfile as sf
-import requests
-import openai
-from elevenlabs import clone, generate, set_api_key
+import os
+import tempfile
+from openai import OpenAI
+from elevenlabs import generate, save
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 openai.base_url = os.getenv("OPENAI_BASE_URL")
-set_api_key(os.getenv("ELEVEN_API_KEY"))
+ELKEY = os.getenv("ELEVEN_API_KEY")
 VOICE = os.getenv("ELEVEN_VOICE_ID")
-
 
 @app.route("/ask-hal", methods=["POST"])
 def ask_hal():
+    print("🔴 Received request at /ask-hal")
+
+    if "audio" not in request.files:
+        return "No audio file found", 400
+
     audio_file = request.files["audio"]
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        f.write(audio_file.read())
-        f.flush()
+    temp_path = tempfile.mktemp(suffix=".wav")
+    audio_file.save(temp_path)
 
-        # Transcribe
-        transcript = openai.audio.transcriptions.create(
-            model="whisper-1", file=open(f.name, "rb")
-        )
-        prompt = transcript.text
+    transcript = openai.audio.transcriptions.create(
+        model="whisper-1",
+        file=open(temp_path, "rb")
+    ).text
 
-        # Get AI response
-        completion = openai.chat.completions.create(
-            model="meta-llama/llama-3-8b-instruct",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are HAL 9000 from 2001: A Space Odyssey. Keep responses calm, emotionless, short, and psychologically provocative.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        reply = completion.choices[0].message.content
+    print("User said:", transcript)
 
-        # TTS via ElevenLabs
-        audio = generate(
-            text=reply,
-            voice=VOICE,
-            model="eleven_multilingual_v1"
-        )
-        output_path = os.path.join(tempfile.gettempdir(), "hal-response.wav")
-        with open(output_path, "wb") as f:
-            f.write(audio)
+    response = openai.chat.completions.create(
+        model="meta-llama/llama-3-8b-instruct",
+        messages=[
+            {"role": "system", "content": "You are HAL 9000. Respond briefly, calmly, and critically."},
+            {"role": "user", "content": transcript}
+        ]
+    ).choices[0].message.content
 
-    return send_file(output_path, mimetype="audio/wav")
+    print("HAL:", response)
 
+    audio = generate(
+        text=response,
+        voice=VOICE,
+        model="eleven_monolingual_v1",
+        api_key=ELKEY
+    )
+
+    out_path = tempfile.mktemp(suffix=".mp3")
+    save(audio, out_path)
+
+    return send_file(out_path, mimetype="audio/mpeg")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
