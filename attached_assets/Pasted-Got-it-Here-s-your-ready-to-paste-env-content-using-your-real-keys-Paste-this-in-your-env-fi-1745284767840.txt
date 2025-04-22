@@ -1,3 +1,31 @@
+Got it. Here's your ready-to-paste .env content using your real keys:
+
+🟢 Paste this in your .env file:
+env
+Copy
+Edit
+OPENAI_API_KEY=sk-openrouter-user-2w3ZhZqVD3z4Qo8qFdyRiMGPwH
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+ELEVEN_API_KEY=8f9a343268f44d12a7fd68ec9110bcd9
+ELEVEN_VOICE_ID=MF3mGyEYCl7XYWbV9V6O
+Let me know once it's saved — I’ll give you the full working main.py code for your HAL backend server.
+
+
+
+
+
+
+You said:
+done
+
+
+ChatGPT said:
+Perfect. Here's your production-ready main.py for the HAL backend on Replit:
+
+🧠 Paste this into main.py:
+python
+Copy
+Edit
 import os
 import tempfile
 from flask import Flask, request, send_file
@@ -54,3 +82,11 @@ def ask_hal():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
+✅ Final steps:
+On Replit, go to "Secrets" (padlock icon) and paste the .env keys there too — just in case.
+
+Click "Run" — your server will be hosted at something like https://hal-backend.<your-name>.repl.co/ask-hal.
+
+Copy that full URL and paste it into your Lovable frontend as the backend API for /ask-hal.
+
+Done! Your HAL 9000 AI is now live on the web. Ready to respond like the eeriest AI in cinema history.
