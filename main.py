@@ -5,7 +5,7 @@ from flask_cors import CORS
 import soundfile as sf
 import requests
 import openai
-from elevenlabs import clone, generate
+from elevenlabs import clone, generate, set_api_key
 from dotenv import load_dotenv
 
 load_dotenv()
