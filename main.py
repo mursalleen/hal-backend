@@ -5,7 +5,7 @@ from flask_cors import CORS
 import soundfile as sf
 import requests
 import openai
-from elevenlabs import generate, save, set_api_key
+from elevenlabs import clone, generate
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -45,9 +45,14 @@ def ask_hal():
         reply = completion.choices[0].message.content
 
         # TTS via ElevenLabs
-        audio = generate(text=reply, voice=VOICE, model="eleven_monolingual_v1")
+        audio = generate(
+            text=reply,
+            voice=VOICE,
+            model="eleven_multilingual_v1"
+        )
         output_path = os.path.join(tempfile.gettempdir(), "hal-response.wav")
-        save(audio, output_path)
+        with open(output_path, "wb") as f:
+            f.write(audio)
 
     return send_file(output_path, mimetype="audio/wav")
 
